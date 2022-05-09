@@ -14,7 +14,7 @@ from  MvCameraControl_class import *
 
 BLUR_KERNEL_SIZE = 5
 class hkDetect:
-    def __init__(self,configuration,opt=None):
+    def __init__(self,opt=None):
         self.opt = opt
         self.init_model(opt)
 

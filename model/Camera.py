@@ -22,6 +22,7 @@ class Camera(QObject):
     show_picture_signal = pyqtSignal(object, object,object)
     show_detect_info = pyqtSignal(object,object)
     sample_signal = pyqtSignal(object,object)
+    detect_show_signal = pyqtSignal(object,object)
     def __init__(self,camNo,opt,slot):
         super(Camera, self).__init__()
         self.camNo = camNo
@@ -35,7 +36,7 @@ class Camera(QObject):
         self.ratio = 0.0
         self.opt = opt
         self.imgs = []
-        self.hkDetect = hkDetect(opt)
+        # self.hkDetect = hkDetect(opt)
         self.g_bExit = False
         self.slot = slot
         # self.timeout = timeout
@@ -61,6 +62,11 @@ class Camera(QObject):
         # ch:选择设备并创建句柄 | en:Select device and create handle
         stDeviceList = cast(deviceList.pDeviceInfo[int(self.camNo)-1], POINTER(MV_CC_DEVICE_INFO)).contents
         ret = self.cam.MV_CC_CreateHandle(stDeviceList)
+
+
+
+
+
         # ch:打开设备 | en:Open device
         ret = self.cam.MV_CC_OpenDevice(MV_ACCESS_Exclusive, 0)
         # ch:探测网络最佳包大小(只对GigE相机有效) | en:Detection network optimal package size(It only works for the GigE camera)
@@ -73,8 +79,39 @@ class Camera(QObject):
             else:
                 print("Warning: Get Packet Size fail! ret[0x%x]" % nPacketSize)
 
+
+        ret = self.cam.MV_CC_SetIntValue("Height", 1500)
+        if ret != 0:
+            print("set Height fail! ret[0x%x]" % ret)
+            sys.exit()
+
+        #设置图片格式
+        ret = self.cam.MV_CC_SetIntValue("Width", 1024)
+        if ret != 0:
+            print("set Width fail! ret[0x%x]" % ret)
+            sys.exit()
+
+
+        # 设置使能采集帧率控制
+        # ret = self.cam.MV_CC_SetBoolValue("AcquisitionFrameRateEnable", True)
+        # if ret != 0:
+        #     print("set AcquisitionFrameRateEnable fail! ret[0x%x]" % ret)
+        #     sys.exit()
+        #
+        # ret = self.cam.MV_CC_SetFloatValue("AcquisitionFrameRate", 5.0)
+        # if ret != 0:
+        #     print("set AcquisitionFrameRate fail! ret[0x%x]" % ret)
+        #     sys.exit()
+
+
+        #设置曝光时间
+        ret = self.cam.MV_CC_SetFloatValue("ExposureTime", 10000)
+        if ret != 0:
+            print("set ExposureTime fail! ret[0x%x]" % ret)
+            sys.exit()
+
         # ch:设置触发模式为ON | en:Set trigger mode as off
-        ret = self.cam.MV_CC_SetEnumValue("TriggerMode", MV_TRIGGER_MODE_ON)
+        ret = self.cam.MV_CC_SetEnumValue("TriggerMode", MV_TRIGGER_MODE_OFF)
         if ret != 0:
             print("set trigger mode fail! ret[0x%x]" % ret)
             sys.exit()
@@ -90,6 +127,8 @@ class Camera(QObject):
             sys.exit()
         nPayloadSize = stParam.nCurValue
 
+
+
             # ch:开始取流 | en:Start grab image
         ret = self.cam.MV_CC_StartGrabbing()
         if ret != 0:
@@ -101,6 +140,9 @@ class Camera(QObject):
         try:
             if(self.slot==1):
                  threading.Thread(target=self.detect_work_thread, args=(self.cam, data_buf , nPayloadSize,self.camNo)).start()
+            elif(self.slot==0):
+                threading.Thread(target=self.show_work_thread,
+                                 args=(self.cam, data_buf, nPayloadSize, self.camNo)).start()
             else:
                  threading.Thread(target=self.train_work_thread, args=(self.cam, data_buf, nPayloadSize, self.camNo)).start()
 
@@ -162,6 +204,26 @@ class Camera(QObject):
                 print("no data[0x%x]" % ret)
             if self.g_bExit == True:
                 break
+    def show_work_thread(self,cam=0, pData=0, nDataSize=0, camNo=0):
+        stFrameInfo = MV_FRAME_OUT_INFO_EX()
+        memset(byref(stFrameInfo), 0, sizeof(stFrameInfo))
+        while True:
+            ret = cam.MV_CC_GetOneFrameTimeout(pData, nDataSize, stFrameInfo, 1000)
+            if ret == 0:
+                print("get one frame: Width[%d], Height[%d], nFrameNum[%d]" % (
+                    stFrameInfo.nWidth, stFrameInfo.nHeight, stFrameInfo.nFrameNum))
+                image = np.asarray(pData).reshape((stFrameInfo.nHeight, stFrameInfo.nWidth))
+                image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                originalshow = image
+
+                # originalshow = roi_split(image)
+
+                self.detect_show_signal.emit(originalshow, camNo)
+
+            else:
+                print("no data[0x%x]" % ret)
+            if self.g_bExit == True:
+                break
 
     def train_work_thread(self, cam=0, pData=0, nDataSize=0, camNo=0):
         stFrameInfo = MV_FRAME_OUT_INFO_EX()
@@ -176,7 +238,7 @@ class Camera(QObject):
                 originalshow = roi_split(image)
                 # image = cv2.resize(image, (656, 480))
                 # originalshow = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                self.sample_signal.emit(originalshow, camNo)
+                self.detect_show_signal.emit(originalshow, camNo)
 
             else:
                 print("no data[0x%x]" % ret)

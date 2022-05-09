@@ -41,10 +41,11 @@ class Detection(DetectionWin):
         self.opt.cfg = self.configuration.value("CFG_PATH")
         self.opt.output = self.configuration.value("SAVE_IMG_PATH")
         self.opt.weights = self.configuration.value("WEIGHTS_PATH")
-        self.hkDetect = hkDetect(self.opt)
+        # self.hkDetect = hkDetect(self.opt)
         for camNo in self.configuration.value('CAM_LIST'):
-            cam = Camera(camNo,self.opt,1)
+            cam = Camera(camNo,self.opt,0)
             cam.show_picture_signal.connect(self.image_show)
+            cam.detect_show_signal.connect(self.origin_image_show)
             self.cams.update({camNo: cam})
             cam.openCam()
 
@@ -66,6 +67,12 @@ class Detection(DetectionWin):
         self.speed_value.setText(str(self.speed) + "个/分钟")
         self.ratio_value.setText(str(self.ratio) + "%")
 
+    def origin_image_show(self,image,camNo):
+        camera = self.cams[camNo]
+        # image = cv2.resize(image, (self.opt.width, self.opt.height))
+        result_image = QtGui.QImage(image.data, image.shape[1], image.shape[0],
+                                    QtGui.QImage.Format_RGB888)  # 把读取到的视频数据变成QImage形式
+        self.cameraDetectionLabels[camNo].setPixmap(QtGui.QPixmap.fromImage(result_image))
 
     def image_show(self,image,defect_type,camNo):
         camera = self.cams[camNo]
