@@ -39,6 +39,8 @@ class DetectionWin(QWidget):
         self.camera1.setObjectName("camera1")
         self.camera1_detection_label = QtWidgets.QLabel(self.camera1)
         self.camera1_detection_label.setGeometry(QtCore.QRect(80, 10, 440, 300))
+        # self.camera1_detection_label.setGeometry(QtCore.QRect(80, 10, 440, 300))
+
         self.camera1_detection_label.setText("")
         self.camera1_detection_label.setObjectName("camera1_detection_label")
         self.camera1_label = QtWidgets.QLabel(self.camera1)

@@ -86,7 +86,7 @@ class Camera(QObject):
             sys.exit()
 
         #设置图片格式
-        ret = self.cam.MV_CC_SetIntValue("Width", 1024)
+        ret = self.cam.MV_CC_SetIntValue("Width", 1600)
         if ret != 0:
             print("set Width fail! ret[0x%x]" % ret)
             sys.exit()
@@ -103,9 +103,19 @@ class Camera(QObject):
         #     print("set AcquisitionFrameRate fail! ret[0x%x]" % ret)
         #     sys.exit()
 
+        # 设置行频
+        ret = self.cam.MV_CC_SetIntValue("AcquisitionLineRate", 1000)
+        if ret != 0:
+            print("set WidthAcquisitionLineRate fail! ret[0x%x]" % ret)
+            sys.exit()
+
+        ret = self.cam.MV_CC_SetBoolValue("AcquisitionLineRateEnable", True)
+        if ret != 0:
+            print("set AcquisitionLineRateEnable fail! ret[0x%x]" % ret)
+            sys.exit()
 
         #设置曝光时间
-        ret = self.cam.MV_CC_SetFloatValue("ExposureTime", 10000)
+        ret = self.cam.MV_CC_SetFloatValue("ExposureTime", 1000)
         if ret != 0:
             print("set ExposureTime fail! ret[0x%x]" % ret)
             sys.exit()
