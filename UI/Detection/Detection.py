@@ -11,6 +11,7 @@ import numpy as np
 import cv2
 from model.Opt import Opt
 from model.Camera import Camera
+from numba import jit
 
 from  MvCameraControl_class import *
 winfun_ctype = WINFUNCTYPE
@@ -67,10 +68,43 @@ class Detection(DetectionWin):
         self.speed_value.setText(str(self.speed) + "个/分钟")
         self.ratio_value.setText(str(self.ratio) + "%")
 
+    @jit
+    def select_side(self,img):
+        (h, w) = img.shape
+        imagex = img
+
+        # 初始化一个跟图像宽一样长度的数组，用于记录每一列的黑点个数
+        a = [0 for z in range(0, w)]
+
+        for i in range(0, w):  # 遍历每一列
+            for j in range(0, h):  # 遍历每一行
+                if imagex[j, i] == 0:  # 判断该点是否为黑点，0代表是黑点
+                    a[i] += 1  # 该列的计数器加1
+                    imagex[j, i] = 255  # 记录完后将其变为白色，即等于255
+                if a[i] >= 0.4 * h:
+                    a[i] = h
+
+        for i in range(0, w):  # 遍历每一列
+            for j in range(h - a[i], h):  # 从该列应该变黑的最顶部的开始向最底部设为黑点
+                imagex[j, i] = 0  # 设为黑点
+        # hh = int(0.4 * h)
+        # for i in range(0, w):  # 遍历每一列
+        #     for j in range(0, hh):  # 遍历每一行
+        #         if imagex[j, i] == 0:  # 判断该点是否为黑点，0代表是黑点
+        #             a[i] += 1  # 该列的计数器加1
+        #             imagex[j, i] = 255  # 记录完后将其变为白色，即等于255
+        #         if a[i] >= 0.16 * h:
+        #             a[i] = h
+        #
+        # for i in range(0, w):  # 遍历每一列
+        #     for j in range(h - a[i], h):  # 从该列应该变黑的最顶部的开始向最底部设为黑点
+        #         imagex[j, i] = 0  # 设为黑点
+        return imagex
 
     def draw(self,img):
         src_image = img
         # cv2.imshow("src_image", src_image)
+
 
         gauss_image = cv2.GaussianBlur(src_image, (5, 5), 0)
         gauss_image = cv2.GaussianBlur(gauss_image, (5, 5), 0)
@@ -80,7 +114,7 @@ class Detection(DetectionWin):
 
         means, dev = cv2.meanStdDev(gauss_image)
         # 确定二值化阈值
-        cut = int(means) - 40
+        cut = int(means) * 0.65
         # cut = int(means) - 1.6 * int(dev)
 
 
@@ -103,23 +137,25 @@ class Detection(DetectionWin):
         dst = cv2.erode(binary, kernel5)# 腐蚀操作
         dst = cv2.dilate(dst, kernel5)
 
-        (h, w) = binary.shape
-        imagex = binary
+        imagex = self.select_side(binary)
 
-        # 初始化一个跟图像宽一样长度的数组，用于记录每一列的黑点个数
-        a = [0 for z in range(0, w)]
-
-        for i in range(0, w):  # 遍历每一列
-            for j in range(0, h):  # 遍历每一行
-                if imagex[j, i] == 0:  # 判断该点是否为黑点，0代表是黑点
-                    a[i] += 1  # 该列的计数器加1
-                    imagex[j, i] = 255  # 记录完后将其变为白色，即等于255
-                if a[i] >= 0.4 * h:
-                    a[i] = h
-
-        for i in range(0, w):  # 遍历每一列
-            for j in range(h - a[i], h):  # 从该列应该变黑的最顶部的开始向最底部设为黑点
-                imagex[j, i] = 0  # 设为黑点
+        # (h, w) = binary.shape
+        # imagex = binary
+        #
+        # # 初始化一个跟图像宽一样长度的数组，用于记录每一列的黑点个数
+        # a = [0 for z in range(0, w)]
+        #
+        # for i in range(0, w):  # 遍历每一列
+        #     for j in range(0, h):  # 遍历每一行
+        #         if imagex[j, i] == 0:  # 判断该点是否为黑点，0代表是黑点
+        #             a[i] += 1  # 该列的计数器加1
+        #             imagex[j, i] = 255  # 记录完后将其变为白色，即等于255
+        #         if a[i] >= 0.4 * h:
+        #             a[i] = h
+        #
+        # for i in range(0, w):  # 遍历每一列
+        #     for j in range(h - a[i], h):  # 从该列应该变黑的最顶部的开始向最底部设为黑点
+        #         imagex[j, i] = 0  # 设为黑点
 
         imagex = cv2.dilate(imagex, kernel5)
 
@@ -139,7 +175,7 @@ class Detection(DetectionWin):
             if area >= 200:
                 # 确定最小外接矩形，并框出
                 rect = cv2.minAreaRect(contours[i])
-                if rect[1][1] > 10 and rect[1][0] > 10:
+                if rect[1][1] > 14 and rect[1][0] > 14:
                     box = cv2.boxPoints(rect)
                     box = np.int0(box)
                     src_image = cv2.UMat(src_image).get()
@@ -161,38 +197,52 @@ class Detection(DetectionWin):
         a, b = image2.shape
 
         print(a, b)
-        for i in range(b):
-            if binary[1, i] == 255:
-                # print(image1[1, i])
-                image2[1, i] = 255
-                # print(i)
-                x = i
+        # for i in range(b):
+        #     if binary[1, i] == 255:
+        #         # print(image1[1, i])
+        #         image2[1, i] = 255
+        #         # print(i)
+        #         x = i
+        #
+        #         break
+        #
+        # # print(l1)
+        # # print("--------------------------")
+        # for j in range(b - 1, -1, -1):
+        #     if binary[a - 1, j] == 255:
+        #         # print(image1[a - 1, j])
+        #         # image2[a - 1, j - 1] = 255
+        #         # image2[a - 1, j + 1] = 255
+        #         y = j
+        #         # print(j)
+        #
+        #         break
+        #
+        # #确定每个磁芯的边间，并切割
+        # cropped0 = image1[0:a, x:int(x) + int((y - x) / 10)]
+        # cropped1 = image1[0:a, int(x) + int((y - x) / 10):int(x) + int(2 * (y - x) / 10)]
+        # cropped2 = image1[0:a, int(x) + int(2 * (y - x) / 10):int(x) + int(3 * (y - x) / 10)]
+        # cropped3 = image1[0:a, int(x) + int(3 * (y - x) / 10):int(x) + int(4 * (y - x) / 10)]
+        # cropped4 = image1[0:a, int(x) + int(4 * (y - x) / 10):int(x) + int(5 * (y - x) / 10)]
+        # cropped5 = image1[0:a, int(x) + int(5 * (y - x) / 10):int(x) + int(6 * (y - x) / 10)]
+        # cropped6 = image1[0:a, int(x) + int(6 * (y - x) / 10):int(x) + int(7 * (y - x) / 10)]
+        # cropped7 = image1[0:a, int(x) + int(7 * (y - x) / 10):int(x) + int(8 * (y - x) / 10)]
+        # cropped8 = image1[0:a, int(x) + int(8 * (y - x) / 10):int(x) + int(9 * (y - x) / 10)]
+        # cropped9 = image1[0:a, int(x) + int(9 * (y - x) / 10):int(x) + int(y - x)]
 
-                break
+        first_line = 130
+        wid = 129
+        cropped0 = image1[0:a, first_line:wid]
+        cropped1 = image1[0:a, first_line+wid:first_line+wid*2]
+        cropped2 = image1[0:a, first_line+wid*2:first_line+wid*3]
+        cropped3 = image1[0:a, first_line+wid*3:first_line+wid*4]
+        cropped4 = image1[0:a, first_line+wid*4:first_line+wid*5]
+        cropped5 = image1[0:a, first_line+wid*5:first_line+wid*6]
+        cropped6 = image1[0:a, first_line+wid*6:first_line+wid*7]
+        cropped7 = image1[0:a, first_line+wid*7:first_line+wid*8]
+        cropped8 = image1[0:a, first_line+wid*8:first_line+wid*9]
+        cropped9 = image1[0:a, first_line+wid*9:first_line+wid*10]
 
-        # print(l1)
-        # print("--------------------------")
-        for j in range(b - 1, -1, -1):
-            if binary[a - 1, j] == 255:
-                # print(image1[a - 1, j])
-                # image2[a - 1, j - 1] = 255
-                # image2[a - 1, j + 1] = 255
-                y = j
-                # print(j)
-
-                break
-
-        #确定每个磁芯的边间，并切割
-        cropped0 = image1[0:a, x:int(x) + int((y - x) / 10)]
-        cropped1 = image1[0:a, int(x) + int((y - x) / 10):int(x) + int(2 * (y - x) / 10)]
-        cropped2 = image1[0:a, int(x) + int(2 * (y - x) / 10):int(x) + int(3 * (y - x) / 10)]
-        cropped3 = image1[0:a, int(x) + int(3 * (y - x) / 10):int(x) + int(4 * (y - x) / 10)]
-        cropped4 = image1[0:a, int(x) + int(4 * (y - x) / 10):int(x) + int(5 * (y - x) / 10)]
-        cropped5 = image1[0:a, int(x) + int(5 * (y - x) / 10):int(x) + int(6 * (y - x) / 10)]
-        cropped6 = image1[0:a, int(x) + int(6 * (y - x) / 10):int(x) + int(7 * (y - x) / 10)]
-        cropped7 = image1[0:a, int(x) + int(7 * (y - x) / 10):int(x) + int(8 * (y - x) / 10)]
-        cropped8 = image1[0:a, int(x) + int(8 * (y - x) / 10):int(x) + int(9 * (y - x) / 10)]
-        cropped9 = image1[0:a, int(x) + int(9 * (y - x) / 10):int(x) + int(y - x)]
         #进行磁芯缺陷检测
         cropped0 = self.draw(cropped0)
         cropped1 = self.draw(cropped1)
